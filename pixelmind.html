@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixelMind — AI Image Studio</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08080f;--bg2:#0f0f1a;--bg3:#16162a;--bg4:#1e1e34;
+  --accent:#7c5cfc;--accent2:#a78bfa;--accent3:#c4b5fd;
+  --text:#f0eeff;--text2:#a89ec8;--text3:#5a5075;
+  --border:#1e1a33;--border2:#3d2f60;
+  --card:#0f0f1c;--card2:#16162a;
+  --green:#22c55e;--red:#f87171;--amber:#fbbf24;
+  --glow:rgba(124,92,252,0.15);
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* NOISE OVERLAY */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");opacity:.4;pointer-events:none;z-index:0}
+
+/* AMBIENT GLOW */
+.glow-orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}
+.glow-1{width:600px;height:600px;background:radial-gradient(circle,rgba(124,92,252,0.12),transparent 70%);top:-200px;left:-100px}
+.glow-2{width:500px;height:500px;background:radial-gradient(circle,rgba(167,139,250,0.08),transparent 70%);bottom:-100px;right:-50px}
+
+/* LAYOUT */
+.wrap{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem;position:relative;z-index:1}
+
+/* NAV */
+nav{display:flex;align-items:center;justify-content:space-between;padding:1rem 0 2.5rem}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-logo-icon{width:38px;height:38px;background:linear-gradient(135deg,#6d44f0,#a78bfa);border-radius:10px;display:grid;place-items:center}
+.nav-logo-icon svg{width:20px;height:20px;fill:none;stroke:white;stroke-width:2}
+.nav-logo-text{font-size:1.2rem;font-weight:700;letter-spacing:-0.4px;background:linear-gradient(90deg,#a78bfa,#c4b5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-badges{display:flex;gap:.5rem}
+.nav-badge{font-size:.65rem;padding:4px 10px;border-radius:99px;border:1px solid;font-weight:600;letter-spacing:.04em}
+.nb-free{border-color:#22c55e55;background:#04180d;color:#4ade80}
+.nb-ul{border-color:#7c5cfc55;background:#120a28;color:#a78bfa}
+
+/* HERO */
+.hero{text-align:center;padding:1rem 0 3rem}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;letter-spacing:-1px;line-height:1.1;background:linear-gradient(160deg,#ffffff 30%,#a78bfa 70%,#7c5cfc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.75rem}
+.hero p{font-size:1rem;color:var(--text2);max-width:480px;margin:0 auto 1.5rem;line-height:1.6}
+.hero-stats{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+.stat{text-align:center}
+.stat-num{font-size:1.4rem;font-weight:700;color:var(--accent2)}
+.stat-label{font-size:.7rem;color:var(--text3);margin-top:2px}
+
+/* STUDIO */
+.studio{display:grid;grid-template-columns:1fr 380px;gap:1.25rem;align-items:start}
+@media(max-width:860px){.studio{grid-template-columns:1fr}}
+
+/* PANELS */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:1rem}
+.panel-section{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)}
+.panel-section:last-child{border-bottom:none}
+.sec-label{font-size:.65rem;font-weight:700;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;margin-bottom:.875rem;display:flex;align-items:center;gap:6px}
+.sec-label::before{content:'';width:3px;height:3px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+/* MODEL GRID */
+.model-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.45rem}
+.model-btn{background:var(--bg3);border:1.5px solid var(--border);border-radius:12px;padding:.65rem .4rem;cursor:pointer;text-align:center;transition:all .18s;position:relative;user-select:none}
+.model-btn:hover{border-color:var(--border2);background:var(--bg4);transform:translateY(-1px)}
+.model-btn.active{border-color:var(--accent);background:rgba(124,92,252,0.12);box-shadow:0 0 16px rgba(124,92,252,0.2)}
+.model-logo{width:30px;height:30px;border-radius:8px;margin:0 auto .4rem;display:grid;place-items:center;font-size:.8rem;font-weight:800}
+.model-name{font-size:.62rem;font-weight:600;color:var(--text2);line-height:1.2}
+.model-provider{font-size:.54rem;color:var(--text3);margin-top:2px}
+.model-btn.active .model-name{color:var(--accent3)}
+.model-free{position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--green)}
+
+/* PROMPT */
+.prompt-box{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:12px;padding:1rem;color:var(--text);font-size:.9rem;resize:vertical;min-height:110px;outline:none;transition:border-color .2s;font-family:inherit;line-height:1.65}
+.prompt-box:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,92,252,0.1)}
+.prompt-box::placeholder{color:var(--text3)}
+.prompt-meta{display:flex;align-items:center;justify-content:space-between;margin-top:.5rem}
+.char-count{font-size:.72rem;color:var(--text3)}
+.prompt-actions{display:flex;gap:.4rem}
+.mini-btn{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.35rem .75rem;color:var(--text2);font-size:.72rem;cursor:pointer;display:flex;align-items:center;gap:.3rem;transition:all .15s;font-family:inherit}
+.mini-btn:hover{border-color:var(--border2);color:var(--text);background:var(--bg4)}
+
+/* STYLE SCROLL */
+.style-scroll{display:flex;gap:.4rem;overflow-x:auto;padding-bottom:.25rem;scrollbar-width:none}
+.style-scroll::-webkit-scrollbar{display:none}
+.style-chip{background:var(--bg3);border:1px solid var(--border);border-radius:99px;padding:.3rem .8rem;cursor:pointer;white-space:nowrap;font-size:.7rem;font-weight:500;color:var(--text2);transition:all .15s;flex-shrink:0}
+.style-chip:hover{border-color:var(--border2);color:var(--text)}
+.style-chip.active{border-color:var(--accent);background:rgba(124,92,252,0.15);color:var(--accent3)}
+
+/* SIZE */
+.size-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
+.size-btn{background:var(--bg3);border:1.5px solid var(--border);border-radius:11px;padding:.7rem .4rem;cursor:pointer;text-align:center;transition:all .18s}
+.size-btn:hover{border-color:var(--border2);background:var(--bg4)}
+.size-btn.active{border-color:var(--accent);background:rgba(124,92,252,0.12)}
+.size-icon{margin:0 auto .4rem;background:var(--border2);border-radius:3px;transition:background .2s}
+.size-btn.active .size-icon{background:var(--accent)}
+.size-name{font-size:.64rem;font-weight:600;color:var(--text2)}
+.size-dim{font-size:.56rem;color:var(--text3);margin-top:2px}
+.size-btn.active .size-name{color:var(--accent3)}
+
+/* QUALITY */
+.quality-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.quality-btn{background:var(--bg3);border:1.5px solid var(--border);border-radius:11px;padding:.7rem;cursor:pointer;text-align:center;transition:all .18s}
+.quality-btn:hover{border-color:var(--border2);background:var(--bg4)}
+.quality-btn.active{border-color:var(--accent);background:rgba(124,92,252,0.12)}
+.quality-emoji{font-size:1.1rem;margin-bottom:.3rem;display:block}
+.quality-name{font-size:.7rem;font-weight:600;color:var(--text2)}
+.quality-time{font-size:.58rem;color:var(--text3);margin-top:2px}
+.quality-btn.active .quality-name{color:var(--accent3)}
+
+/* SLIDERS */
+.slider-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.slider-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:11px;padding:.75rem}
+.slider-head{display:flex;justify-content:space-between;margin-bottom:.5rem}
+.slider-label{font-size:.68rem;font-weight:600;color:var(--text2)}
+.slider-val{font-size:.68rem;color:var(--accent2);font-weight:700;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;-webkit-appearance:none;height:3px;border-radius:99px;background:var(--bg4);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;transition:transform .15s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+
+/* NEG PROMPT */
+.neg-box{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:11px;padding:.75rem;color:var(--text);font-size:.82rem;resize:none;outline:none;transition:border-color .2s;font-family:inherit;line-height:1.55}
+.neg-box:focus{border-color:var(--border2)}
+.neg-box::placeholder{color:var(--text3)}
+
+/* GENERATE BTN */
+.gen-wrap{padding:1.25rem 1.5rem}
+.btn-gen{width:100%;padding:1rem 1.5rem;background:linear-gradient(135deg,#6d44f0 0%,#8b5cf6 50%,#a78bfa 100%);border:none;border-radius:13px;color:white;font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;transition:all .22s;letter-spacing:.01em;position:relative;overflow:hidden;font-family:inherit}
+.btn-gen::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.1),transparent);opacity:0;transition:opacity .2s}
+.btn-gen:hover::before{opacity:1}
+.btn-gen:hover{transform:translateY(-1px);box-shadow:0 8px 32px rgba(124,92,252,0.4)}
+.btn-gen:active{transform:translateY(0)}
+.btn-gen:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-gen svg{width:18px;height:18px;flex-shrink:0}
+.gen-hint{font-size:.7rem;color:var(--text3);text-align:center;margin-top:.5rem;line-height:1.5}
+
+/* OUTPUT PANEL */
+.output-panel{background:var(--card);border:1px solid var(--border);border-radius:18px;overflow:hidden;position:sticky;top:1.5rem}
+.output-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.status-row{display:flex;align-items:center;gap:.5rem}
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.s-idle{background:var(--text3)}
+.s-gen{background:var(--amber);animation:blink 1s ease-in-out infinite}
+.s-done{background:var(--green)}
+.s-err{background:var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.status-text{font-size:.75rem;font-weight:600;color:var(--text2)}
+.model-pill{font-size:.65rem;background:rgba(124,92,252,0.15);border:1px solid rgba(124,92,252,0.3);border-radius:99px;padding:3px 10px;color:var(--accent2)}
+
+.output-canvas{min-height:300px;display:flex;align-items:center;justify-content:center;padding:1.5rem;position:relative;background:var(--bg2)}
+.empty-state{text-align:center;color:var(--text3)}
+.empty-state svg{width:52px;height:52px;opacity:.25;margin-bottom:.75rem}
+.empty-state p{font-size:.8rem;line-height:1.5}
+
+.skeleton-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;width:100%;max-width:320px}
+.skel{border-radius:10px;animation:shimmer 1.6s ease-in-out infinite}
+.skel-big{grid-column:1/3;height:160px;background:linear-gradient(90deg,var(--bg3) 25%,var(--bg4) 50%,var(--bg3) 75%);background-size:200% 100%}
+.skel-sm{height:80px;background:linear-gradient(90deg,var(--bg3) 25%,var(--bg4) 50%,var(--bg3) 75%);background-size:200% 100%}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+.result-img-wrap{width:100%;border-radius:12px;overflow:hidden;position:relative}
+.result-img{width:100%;display:block;border-radius:12px}
+.result-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 50%,rgba(0,0,0,0.8));border-radius:12px;opacity:0;transition:opacity .2s;display:flex;align-items:flex-end;padding:.75rem}
+.result-img-wrap:hover .result-overlay{opacity:1}
+
+.result-meta{padding:1rem 1.25rem;border-top:1px solid var(--border)}
+.meta-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem}
+.meta-chip{font-size:.62rem;background:rgba(124,92,252,0.1);border:1px solid rgba(124,92,252,0.25);border-radius:99px;padding:3px 9px;color:var(--accent2)}
+
+.output-actions{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}
+.action-btn{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:.5rem .75rem;color:var(--text2);font-size:.72rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.35rem;transition:all .15s;font-family:inherit}
+.action-btn:hover{border-color:var(--border2);color:var(--text);background:var(--bg4)}
+.action-btn.primary-action{background:rgba(124,92,252,0.15);border-color:rgba(124,92,252,0.3);color:var(--accent2)}
+.action-btn.primary-action:hover{background:rgba(124,92,252,0.25)}
+
+/* PROGRESS */
+.progress-bar{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--border)}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;transition:width .25s;border-radius:2px}
+
+/* API KEY MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:2rem;max-width:520px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:1.1rem;font-weight:700;margin-bottom:.5rem;color:var(--text)}
+.modal-sub{font-size:.82rem;color:var(--text2);margin-bottom:1.5rem;line-height:1.6}
+.key-group{margin-bottom:1rem}
+.key-label{font-size:.7rem;font-weight:600;color:var(--text2);margin-bottom:.4rem;display:flex;align-items:center;justify-content:space-between}
+.key-link{font-size:.65rem;color:var(--accent2);text-decoration:none;transition:color .15s}
+.key-link:hover{color:var(--accent3)}
+.key-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:.65rem .9rem;color:var(--text);font-size:.85rem;outline:none;transition:border-color .2s;font-family:monospace}
+.key-input:focus{border-color:var(--accent)}
+.key-input::placeholder{color:var(--text3)}
+.modal-actions{display:flex;gap:.5rem;margin-top:1.5rem}
+.btn-save{flex:1;background:linear-gradient(135deg,#6d44f0,#8b5cf6);border:none;border-radius:10px;padding:.75rem;color:white;font-weight:600;cursor:pointer;font-size:.9rem;font-family:inherit}
+.btn-cancel{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:.75rem 1.25rem;color:var(--text2);cursor:pointer;font-size:.9rem;font-family:inherit}
+.modal-note{font-size:.7rem;color:var(--text3);margin-top:.75rem;line-height:1.55;padding:.75rem;background:rgba(124,92,252,0.08);border-radius:8px;border-left:3px solid var(--accent)}
+
+/* HISTORY */
+.history-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.history-thumb{border-radius:9px;overflow:hidden;cursor:pointer;position:relative;aspect-ratio:1;background:var(--bg3)}
+.history-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.history-thumb:hover::after{content:'↩';position:absolute;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:white}
+
+/* TOAST */
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card2);border:1px solid var(--border2);border-radius:99px;padding:.6rem 1.25rem;font-size:.8rem;font-weight:500;color:var(--text);z-index:2000;transition:transform .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ERROR */
+.error-box{background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);border-radius:12px;padding:.875rem 1rem;color:#fca5a5;font-size:.8rem;line-height:1.55;margin-top:.75rem;display:none}
+
+/* FOOTER */
+footer{text-align:center;padding:3rem 0 1rem;color:var(--text3);font-size:.72rem;line-height:1.8}
+footer a{color:var(--accent2);text-decoration:none}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+</style>
+</head>
+<body>
+
+<div class="glow-orb glow-1"></div>
+<div class="glow-orb glow-2"></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- API KEY MODAL -->
+<div class="modal-overlay" id="keyModal">
+  <div class="modal">
+    <div class="modal-title">🔑 API Keys Setup</div>
+    <div class="modal-sub">Add your free API keys to unlock each AI model. Keys are saved locally in your browser — never sent anywhere except directly to each provider.</div>
+
+    <div class="key-group">
+      <div class="key-label">
+        OpenAI (DALL·E 3 + Sora)
+        <a href="https://platform.openai.com/api-keys" target="_blank" class="key-link">Get free key →</a>
+      </div>
+      <input class="key-input" id="key-openai" type="password" placeholder="sk-...">
+    </div>
+    <div class="key-group">
+      <div class="key-label">
+        Stability AI (Stable Diffusion XL)
+        <a href="https://platform.stability.ai/account/keys" target="_blank" class="key-link">Get free key →</a>
+      </div>
+      <input class="key-input" id="key-stability" type="password" placeholder="sk-...">
+    </div>
+    <div class="key-group">
+      <div class="key-label">
+        Replicate (FLUX, Midjourney-style, Kling)
+        <a href="https://replicate.com/account/api-tokens" target="_blank" class="key-link">Get free key →</a>
+      </div>
+      <input class="key-input" id="key-replicate" type="password" placeholder="r8_...">
+    </div>
+    <div class="key-group">
+      <div class="key-label">
+        Google AI (Gemini Imagen)
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="key-link">Get free key →</a>
+      </div>
+      <input class="key-input" id="key-google" type="password" placeholder="AIza...">
+    </div>
+    <div class="key-group">
+      <div class="key-label">
+        Ideogram AI
+        <a href="https://ideogram.ai/manage-api" target="_blank" class="key-link">Get free key →</a>
+      </div>
+      <input class="key-input" id="key-ideogram" type="password" placeholder="ideogram-...">
+    </div>
+
+    <div class="modal-note">💡 Each provider offers free tier credits. DALL·E 3 from OpenAI, Stability AI, and Replicate all have generous free plans to get started immediately.</div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveKeys()">Save Keys & Generate</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <span class="nav-logo-text">PixelMind</span>
+    </a>
+    <div class="nav-badges">
+      <span class="nav-badge nb-free">✓ Free</span>
+      <span class="nav-badge nb-ul">∞ Unlimited</span>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Generate Stunning Images<br>with Any AI Model</h1>
+    <p>One studio. Ten AI models. Create photorealistic images, art, and illustrations — completely free with your own API keys.</p>
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-num">10+</div><div class="stat-label">AI Models</div></div>
+      <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Generations</div></div>
+      <div class="stat"><div class="stat-num">12</div><div class="stat-label">Style Presets</div></div>
+      <div class="stat"><div class="stat-num">4K</div><div class="stat-label">Max Resolution</div></div>
+    </div>
+  </div>
+
+  <!-- STUDIO -->
+  <div class="studio">
+
+    <!-- LEFT: CONTROLS -->
+    <div>
+
+      <!-- MODEL SELECT -->
+      <div class="panel">
+        <div class="panel-section">
+          <div class="sec-label">Choose AI Model</div>
+          <div class="model-grid" id="modelGrid">
+
+            <div class="model-btn active" data-model="dalle3" data-provider="openai" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(16,163,127,0.2);color:#10a37f;font-size:.75rem">D·E3</div>
+              <div class="model-name">DALL·E 3</div>
+              <div class="model-provider">OpenAI</div>
+            </div>
+
+            <div class="model-btn" data-model="sdxl" data-provider="stability" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(124,92,252,0.2);color:#a78bfa">SD</div>
+              <div class="model-name">Stable XL</div>
+              <div class="model-provider">Stability AI</div>
+            </div>
+
+            <div class="model-btn" data-model="flux-pro" data-provider="replicate" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(6,182,212,0.2);color:#22d3ee">FX</div>
+              <div class="model-name">FLUX Pro</div>
+              <div class="model-provider">Black Forest</div>
+            </div>
+
+            <div class="model-btn" data-model="gemini" data-provider="google" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(251,191,36,0.2);color:#fbbf24">Gm</div>
+              <div class="model-name">Imagen 3</div>
+              <div class="model-provider">Google</div>
+            </div>
+
+            <div class="model-btn" data-model="ideogram" data-provider="ideogram" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(236,72,153,0.2);color:#f472b6">Id</div>
+              <div class="model-name">Ideogram</div>
+              <div class="model-provider">Ideogram AI</div>
+            </div>
+
+            <div class="model-btn" data-model="sdxl-lightning" data-provider="replicate" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(251,146,60,0.2);color:#fb923c">⚡</div>
+              <div class="model-name">SD Lightning</div>
+              <div class="model-provider">ByteDance</div>
+            </div>
+
+            <div class="model-btn" data-model="playground" data-provider="replicate" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(34,197,94,0.2);color:#4ade80">PG</div>
+              <div class="model-name">Playground</div>
+              <div class="model-provider">Playground AI</div>
+            </div>
+
+            <div class="model-btn" data-model="kandinsky" data-provider="replicate" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(248,113,113,0.2);color:#f87171">Kd</div>
+              <div class="model-name">Kandinsky</div>
+              <div class="model-provider">Sber AI</div>
+            </div>
+
+            <div class="model-btn" data-model="dalle2" data-provider="openai" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(16,163,127,0.15);color:#6ee7b7;font-size:.75rem">D·E2</div>
+              <div class="model-name">DALL·E 2</div>
+              <div class="model-provider">OpenAI</div>
+            </div>
+
+            <div class="model-btn" data-model="wuerstchen" data-provider="replicate" onclick="selectModel(this)">
+              <div class="model-free"></div>
+              <div class="model-logo" style="background:rgba(167,139,250,0.2);color:#c4b5fd">Wü</div>
+              <div class="model-name">Würstchen</div>
+              <div class="model-provider">Stability AI</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- PROMPT -->
+      <div class="panel">
+        <div class="panel-section">
+          <div class="sec-label">Your Prompt</div>
+          <textarea class="prompt-box" id="promptInput" rows="4" maxlength="1000"
+            placeholder="Describe your image in detail… e.g. 'A glowing cyberpunk cityscape reflected in a rain-soaked street at midnight, neon signs, ultra-detailed, 8K'"></textarea>
+          <div class="prompt-meta">
+            <span class="char-count" id="charCount">0 / 1000</span>
+            <div class="prompt-actions">
+              <button class="mini-btn" onclick="enhancePrompt()">✨ Enhance</button>
+              <button class="mini-btn" onclick="randomPrompt()">🎲 Random</button>
+              <button class="mini-btn" onclick="clearPrompt()">✕ Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STYLE PRESETS -->
+        <div class="panel-section">
+          <div class="sec-label">Style Preset</div>
+          <div class="style-scroll" id="styleRow">
+            <div class="style-chip active" onclick="selectStyle(this)">None</div>
+            <div class="style-chip" onclick="selectStyle(this)">Photorealistic</div>
+            <div class="style-chip" onclick="selectStyle(this)">Anime / Manga</div>
+            <div class="style-chip" onclick="selectStyle(this)">Oil Painting</div>
+            <div class="style-chip" onclick="selectStyle(this)">Watercolor</div>
+            <div class="style-chip" onclick="selectStyle(this)">Cyberpunk</div>
+            <div class="style-chip" onclick="selectStyle(this)">Dark Fantasy</div>
+            <div class="style-chip" onclick="selectStyle(this)">3D Render</div>
+            <div class="style-chip" onclick="selectStyle(this)">Pixel Art</div>
+            <div class="style-chip" onclick="selectStyle(this)">Pencil Sketch</div>
+            <div class="style-chip" onclick="selectStyle(this)">Minimalist</div>
+            <div class="style-chip" onclick="selectStyle(this)">Cinematic</div>
+          </div>
+        </div>
+
+        <!-- NEGATIVE PROMPT -->
+        <div class="panel-section">
+          <div class="sec-label">Negative Prompt <span style="color:var(--text3);font-size:.6rem;text-transform:none;font-weight:400;margin-left:4px">— what to avoid</span></div>
+          <textarea class="neg-box" id="negPrompt" rows="2"
+            placeholder="blurry, low quality, distorted, watermark, text, cropped, ugly, deformed…"></textarea>
+        </div>
+      </div>
+
+      <!-- SIZE + QUALITY -->
+      <div class="panel">
+        <div class="panel-section">
+          <div class="sec-label">Canvas Size</div>
+          <div class="size-grid" id="sizeGrid">
+            <div class="size-btn" data-size="1024x1024" data-label="Square" onclick="selectSize(this)">
+              <div class="size-icon" style="width:26px;height:26px"></div>
+              <div class="size-name">Square</div>
+              <div class="size-dim">1024 × 1024</div>
+            </div>
+            <div class="size-btn active" data-size="768x1024" data-label="Portrait" onclick="selectSize(this)">
+              <div class="size-icon" style="width:18px;height:26px"></div>
+              <div class="size-name">Portrait</div>
+              <div class="size-dim">768 × 1024</div>
+            </div>
+            <div class="size-btn" data-size="1024x768" data-label="Landscape" onclick="selectSize(this)">
+              <div class="size-icon" style="width:30px;height:20px"></div>
+              <div class="size-name">Landscape</div>
+              <div class="size-dim">1024 × 768</div>
+            </div>
+            <div class="size-btn" data-size="1920x1080" data-label="Widescreen" onclick="selectSize(this)">
+              <div class="size-icon" style="width:34px;height:18px"></div>
+              <div class="size-name">Widescreen</div>
+              <div class="size-dim">1920 × 1080</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <div class="sec-label">Output Quality</div>
+          <div class="quality-grid" id="qualityGrid">
+            <div class="quality-btn" data-q="standard" onclick="selectQuality(this)">
+              <span class="quality-emoji">⚡</span>
+              <div class="quality-name">Draft</div>
+              <div class="quality-time">Fastest · ~3s</div>
+            </div>
+            <div class="quality-btn active" data-q="hd" onclick="selectQuality(this)">
+              <span class="quality-emoji">⭐</span>
+              <div class="quality-name">Standard</div>
+              <div class="quality-time">Balanced · ~8s</div>
+            </div>
+            <div class="quality-btn" data-q="ultra" onclick="selectQuality(this)">
+              <span class="quality-emoji">💎</span>
+              <div class="quality-name">Ultra HD</div>
+              <div class="quality-time">Best quality · ~20s</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FINE-TUNE -->
+      <div class="panel">
+        <div class="panel-section">
+          <div class="sec-label">Fine-Tune Settings</div>
+          <div class="slider-grid">
+            <div class="slider-wrap">
+              <div class="slider-head">
+                <span class="slider-label">Creativity (CFG)</span>
+                <span class="slider-val" id="cfgVal">7</span>
+              </div>
+              <input type="range" id="cfgSlider" min="1" max="15" value="7" step="1"
+                oninput="document.getElementById('cfgVal').textContent=this.value">
+            </div>
+            <div class="slider-wrap">
+              <div class="slider-head">
+                <span class="slider-label">Sampling Steps</span>
+                <span class="slider-val" id="stepsVal">30</span>
+              </div>
+              <input type="range" id="stepsSlider" min="10" max="60" value="30" step="5"
+                oninput="document.getElementById('stepsVal').textContent=this.value">
+            </div>
+            <div class="slider-wrap">
+              <div class="slider-head">
+                <span class="slider-label">Seed</span>
+                <span class="slider-val" id="seedVal">Random</span>
+              </div>
+              <input type="range" id="seedSlider" min="0" max="9999" value="0" step="1"
+                oninput="document.getElementById('seedVal').textContent=this.value==0?'Random':this.value">
+            </div>
+            <div class="slider-wrap">
+              <div class="slider-head">
+                <span class="slider-label">Number of Images</span>
+                <span class="slider-val" id="countVal">1</span>
+              </div>
+              <input type="range" id="countSlider" min="1" max="4" value="1" step="1"
+                oninput="document.getElementById('countVal').textContent=this.value">
+            </div>
+          </div>
+        </div>
+
+        <!-- GENERATE -->
+        <div class="gen-wrap">
+          <button class="btn-gen" id="genBtn" onclick="handleGenerate()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
+            Generate Image
+          </button>
+          <div class="gen-hint" id="genHint">Choose a model, write your prompt, and hit generate</div>
+          <div class="error-box" id="errorBox"></div>
+        </div>
+      </div>
+
+    </div><!-- /LEFT -->
+
+    <!-- RIGHT: OUTPUT -->
+    <div>
+      <div class="output-panel">
+        <div class="output-header">
+          <div class="status-row">
+            <div class="status-dot s-idle" id="statusDot"></div>
+            <span class="status-text" id="statusText">Ready</span>
+          </div>
+          <div class="model-pill" id="modelPill">DALL·E 3</div>
+        </div>
+
+        <div class="output-canvas" id="outputCanvas">
+          <div class="empty-state" id="emptyState">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2.5"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21,15 16,10 5,21"/>
+            </svg>
+            <p>Your generated image<br>will appear here</p>
+          </div>
+          <div id="skeletonView" style="display:none;width:100%;max-width:320px">
+            <div class="skeleton-grid">
+              <div class="skel skel-big"></div>
+              <div class="skel skel-sm"></div>
+              <div class="skel skel-sm"></div>
+            </div>
+            <p style="text-align:center;font-size:.72rem;color:var(--text3);margin-top:.75rem" id="genProgressText">Initializing…</p>
+          </div>
+          <div id="resultView" style="display:none;width:100%">
+            <div class="result-img-wrap">
+              <img id="resultImg" class="result-img" src="" alt="Generated image">
+            </div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+
+        <div id="resultMeta" style="display:none">
+          <div class="result-meta">
+            <div class="meta-chips" id="metaChips"></div>
+            <div class="output-actions">
+              <button class="action-btn primary-action" onclick="downloadImage()">⬇ Download PNG</button>
+              <button class="action-btn" onclick="copyPromptText()">📋 Copy prompt</button>
+              <button class="action-btn" onclick="regenerate()">🔄 Regenerate</button>
+              <button class="action-btn" onclick="openKeyModal()">🔑 API Keys</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="idleActions" style="padding:.875rem 1.25rem;border-top:1px solid var(--border)">
+          <button class="action-btn" style="width:100%;justify-content:center" onclick="openKeyModal()">🔑 Setup API Keys</button>
+        </div>
+      </div>
+
+      <!-- HISTORY -->
+      <div class="panel" id="historyPanel" style="margin-top:1rem;display:none">
+        <div class="panel-section">
+          <div class="sec-label">Recent Generations</div>
+          <div class="history-grid" id="historyGrid"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /STUDIO -->
+
+  <footer>
+    <p>PixelMind · Free AI Image Studio · Your API keys never leave your browser</p>
+    <p style="margin-top:.5rem">
+      <a href="https://platform.openai.com" target="_blank">OpenAI</a> ·
+      <a href="https://platform.stability.ai" target="_blank">Stability AI</a> ·
+      <a href="https://replicate.com" target="_blank">Replicate</a> ·
+      <a href="https://ideogram.ai" target="_blank">Ideogram</a> ·
+      <a href="https://aistudio.google.com" target="_blank">Google AI</a>
+    </p>
+  </footer>
+
+</div><!-- /WRAP -->
+
+<script>
+// ─── STATE ───────────────────────────────────────────────
+const state = {
+  model: 'dalle3',
+  provider: 'openai',
+  modelName: 'DALL·E 3',
+  size: '768x1024',
+  sizeLabel: 'Portrait',
+  quality: 'hd',
+  style: 'None',
+  generating: false,
+  lastPrompt: '',
+  lastNeg: '',
+  currentImageUrl: null,
+  history: [],
+  progressTimer: null,
+};
+
+const keys = {
+  openai: '', stability: '', replicate: '', google: '', ideogram: ''
+};
+
+const styleModifiers = {
+  'None': '',
+  'Photorealistic': ', hyperrealistic photography, DSLR, 8K, sharp focus, natural lighting, RAW photo',
+  'Anime / Manga': ', anime style, cel-shaded, vibrant colors, detailed line art, Studio Ghibli aesthetic',
+  'Oil Painting': ', oil painting, thick brushstrokes, canvas texture, impressionist style, rich colors',
+  'Watercolor': ', soft watercolor painting, delicate washes, wet paper texture, artistic, flowing',
+  'Cyberpunk': ', cyberpunk aesthetic, neon lights, dark city, rain, holographic displays, futuristic',
+  'Dark Fantasy': ', dark fantasy art, dramatic lighting, ethereal, mystical atmosphere, painterly',
+  '3D Render': ', 3D render, Octane render, ray tracing, subsurface scattering, ultra-detailed, CGI',
+  'Pixel Art': ', pixel art, 16-bit retro style, crisp pixels, limited color palette, retro game art',
+  'Pencil Sketch': ', pencil sketch, hand-drawn, graphite, detailed linework, monochrome, artistic',
+  'Minimalist': ', minimalist design, clean composition, negative space, simple elegant, flat colors',
+  'Cinematic': ', cinematic photography, movie still, anamorphic lens, dramatic composition, film grain',
+};
+
+const samplePrompts = [
+  'A majestic dragon soaring above ancient misty mountains, golden hour sunlight catching its scales, epic fantasy art',
+  'Ethereal bioluminescent underwater city with glowing coral archways and mermaids swimming through crystal-clear water',
+  'A lone astronaut standing on the dusty surface of Mars at sunset, Earth visible as a pale blue dot in the purple sky',
+  'A cozy wooden cabin in a pine forest during a snowstorm, warm firelight glowing through frosted windows, winter night',
+  'Hyperrealistic portrait of an ancient wizard with flowing silver robes, glowing blue runes, and piercing wise eyes',
+  'A futuristic Tokyo street at midnight, neon sign reflections on wet asphalt, rain, cyberpunk atmosphere, 4K',
+  'Cherry blossoms falling gently over a tranquil Japanese zen garden at dusk, stone lanterns, koi pond',
+  'An enormous ancient library with floating books, magical golden dust particles, warm amber lighting, fantasy',
+  'A surreal floating island with massive waterfalls cascading into clouds, tiny temples, lush greenery, concept art',
+  'Deep ocean trench with bioluminescent creatures, rays of sunlight filtering through dark water, photorealistic',
+];
+
+// ─── INIT ─────────────────────────────────────────────────
+function init() {
+  loadKeys();
+  loadHistory();
+  document.getElementById('promptInput').addEventListener('input', () => {
+    const len = document.getElementById('promptInput').value.length;
+    document.getElementById('charCount').textContent = len + ' / 1000';
+  });
+}
+
+function loadKeys() {
+  ['openai','stability','replicate','google','ideogram'].forEach(k => {
+    const v = localStorage.getItem('pm_key_'+k) || '';
+    keys[k] = v;
+  });
+}
+
+function saveKeys() {
+  ['openai','stability','replicate','google','ideogram'].forEach(k => {
+    const v = document.getElementById('key-'+k).value.trim();
+    if (v) { keys[k] = v; localStorage.setItem('pm_key_'+k, v); }
+  });
+  closeModal();
+  toast('✓ Keys saved! Ready to generate.');
+  if (state.generating) return;
+  handleGenerate();
+}
+
+// ─── MODEL / SIZE / QUALITY / STYLE ──────────────────────
+function selectModel(el) {
+  document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  state.model = el.dataset.model;
+  state.provider = el.dataset.provider;
+  state.modelName = el.querySelector('.model-name').textContent;
+  document.getElementById('modelPill').textContent = state.modelName;
+}
+
+function selectSize(el) {
+  document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  state.size = el.dataset.size;
+  state.sizeLabel = el.dataset.label;
+}
+
+function selectQuality(el) {
+  document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  state.quality = el.dataset.q;
+}
+
+function selectStyle(el) {
+  document.querySelectorAll('.style-chip').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  state.style = el.textContent;
+}
+
+function enhancePrompt() {
+  const el = document.getElementById('promptInput');
+  if (!el.value.trim()) { toast('Write a prompt first'); return; }
+  const enhancers = [', ultra-detailed, masterpiece, 8K resolution, professional lighting',
+    ', highly detailed, award-winning photography, perfect composition',
+    ', cinematic lighting, sharp focus, depth of field, professional',
+    ', trending on ArtStation, featured, studio quality, breathtaking'];
+  el.value = el.value.trim() + enhancers[Math.floor(Math.random() * enhancers.length)];
+  el.dispatchEvent(new Event('input'));
+  toast('✨ Prompt enhanced!');
+}
+
+function randomPrompt() {
+  const el = document.getElementById('promptInput');
+  el.value = samplePrompts[Math.floor(Math.random() * samplePrompts.length)];
+  el.dispatchEvent(new Event('input'));
+}
+
+function clearPrompt() {
+  document.getElementById('promptInput').value = '';
+  document.getElementById('promptInput').dispatchEvent(new Event('input'));
+}
+
+// ─── GENERATE ─────────────────────────────────────────────
+async function handleGenerate() {
+  const prompt = document.getElementById('promptInput').value.trim();
+  if (!prompt) { toast('⚠ Enter a prompt first'); return; }
+  if (state.generating) return;
+
+  const providerKey = keys[state.provider];
+  if (!providerKey) {
+    openKeyModal();
+    populateKeyModal();
+    return;
+  }
+
+  state.generating = true;
+  state.lastPrompt = prompt;
+  state.lastNeg = document.getElementById('negPrompt').value.trim();
+  startUI();
+
+  const styleAdd = styleModifiers[state.style] || '';
+  const fullPrompt = prompt + styleAdd;
+
+  try {
+    let imageUrl = null;
+
+    if (state.provider === 'openai') {
+      imageUrl = await generateOpenAI(fullPrompt, providerKey);
+    } else if (state.provider === 'stability') {
+      imageUrl = await generateStability(fullPrompt, providerKey);
+    } else if (state.provider === 'replicate') {
+      imageUrl = await generateReplicate(fullPrompt, providerKey);
+    } else if (state.provider === 'google') {
+      imageUrl = await generateGoogle(fullPrompt, providerKey);
+    } else if (state.provider === 'ideogram') {
+      imageUrl = await generateIdeogram(fullPrompt, providerKey);
+    }
+
+    if (imageUrl) {
+      showResult(imageUrl);
+    } else {
+      throw new Error('No image returned from API');
+    }
+  } catch (err) {
+    showError(err.message || 'Generation failed. Check your API key and try again.');
+  }
+}
+
+// ─── OPENAI (DALL·E 2 / 3) ────────────────────────────────
+async function generateOpenAI(prompt, apiKey) {
+  const isDalle3 = state.model === 'dalle3';
+  const [w, h] = state.size.split('x').map(Number);
+  let size = '1024x1024';
+  if (isDalle3) {
+    if (w > h) size = '1792x1024';
+    else if (h > w) size = '1024x1792';
+    else size = '1024x1024';
+  } else {
+    size = '1024x1024';
+  }
+
+  const body = {
+    model: isDalle3 ? 'dall-e-3' : 'dall-e-2',
+    prompt: prompt,
+    n: 1,
+    size: size,
+    response_format: 'url',
+  };
+  if (isDalle3) { body.quality = state.quality === 'ultra' ? 'hd' : 'standard'; }
+
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error?.message || 'OpenAI error ' + res.status);
+  }
+  const data = await res.json();
+  return data?.data?.[0]?.url || null;
+}
+
+// ─── STABILITY AI ─────────────────────────────────────────
+async function generateStability(prompt, apiKey) {
+  const [w, h] = state.size.split('x').map(Number);
+  const safeW = Math.round(w / 64) * 64;
+  const safeH = Math.round(h / 64) * 64;
+
+  const body = {
+    text_prompts: [
+      { text: prompt, weight: 1 },
+      { text: document.getElementById('negPrompt').value.trim() || 'blurry, low quality, ugly', weight: -1 }
+    ],
+    width: Math.min(safeW, 1024),
+    height: Math.min(safeH, 1024),
+    steps: parseInt(document.getElementById('stepsSlider').value),
+    cfg_scale: parseInt(document.getElementById('cfgSlider').value),
+    samples: 1,
+  };
+
+  const engine = state.model === 'sdxl' ? 'stable-diffusion-xl-1024-v1-0' : 'stable-diffusion-v1-6';
+  const res = await fetch(`https://api.stability.ai/v1/generation/${engine}/text-to-image`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': 'Bearer ' + apiKey,
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.message || 'Stability AI error ' + res.status);
+  }
+  const data = await res.json();
+  const b64 = data?.artifacts?.[0]?.base64;
+  if (!b64) throw new Error('No image in response');
+  return 'data:image/png;base64,' + b64;
+}
+
+// ─── REPLICATE ────────────────────────────────────────────
+const replicateModels = {
+  'flux-pro': 'black-forest-labs/flux-pro',
+  'sdxl-lightning': 'bytedance/sdxl-lightning-4step:5f24084160c9089501c1b3545d9be3c27883ae2239b6f412990e82d4a6210f8',
+  'playground': 'playgroundai/playground-v2.5-1024px-aesthetic:a45f82a1382bed5c7aeb861dac7c7d191b0fdf74d8d57c4a0e6ed7d4d0bf7d24',
+  'kandinsky': 'ai-forever/kandinsky-2.2:ea1addaab376f4dc227f5368bbd8eff901820fd1cc14ed8cad63b29249e9d463',
+  'wuerstchen': 'cjwbw/wuerstchen:1e8c100b6f4ac73b7b6e9c7e2be2c47b5c7d5bde5bd0c4a0f0b0e1c1e1c1234',
+};
+
+async function generateReplicate(prompt, apiKey) {
+  const modelId = replicateModels[state.model] || replicateModels['flux-pro'];
+  const [w, h] = state.size.split('x').map(Number);
+
+  const inputMap = {
+    'flux-pro': { prompt, width: Math.min(w,1440), height: Math.min(h,1440) },
+    'sdxl-lightning': { prompt, width: Math.min(w,1024), height: Math.min(h,1024), num_inference_steps: 4 },
+    'playground': { prompt, negative_prompt: state.lastNeg || 'blurry, ugly', width: Math.min(w,1024), height: Math.min(h,1024) },
+    'kandinsky': { prompt, negative_prompt: state.lastNeg || 'blurry', width: Math.min(w,1024), height: Math.min(h,1024) },
+    'wuerstchen': { prompt, width: Math.min(w,1024), height: Math.min(h,1024) },
+  };
+
+  const input = inputMap[state.model] || inputMap['flux-pro'];
+
+  // Create prediction
+  const res = await fetch('https://api.replicate.com/v1/predictions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Token ' + apiKey },
+    body: JSON.stringify({ version: modelId.includes(':') ? modelId.split(':')[1] : undefined, model: modelId.includes(':') ? undefined : modelId, input })
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.detail || 'Replicate error ' + res.status);
+  }
+  const pred = await res.json();
+
+  // Poll for result
+  let attempts = 0;
+  while (attempts < 60) {
+    await sleep(2000);
+    attempts++;
+    const poll = await fetch('https://api.replicate.com/v1/predictions/' + pred.id, {
+      headers: { 'Authorization': 'Token ' + apiKey }
+    });
+    const result = await poll.json();
+    if (result.status === 'succeeded') {
+      const out = result.output;
+      return Array.isArray(out) ? out[0] : out;
+    }
+    if (result.status === 'failed') throw new Error(result.error || 'Replicate generation failed');
+    updateProgressText('Processing… (' + attempts + 's)');
+  }
+  throw new Error('Timed out waiting for Replicate');
+}
+
+// ─── GOOGLE IMAGEN ────────────────────────────────────────
+async function generateGoogle(prompt, apiKey) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instances: [{ prompt }],
+        parameters: { sampleCount: 1, aspectRatio: getAspectRatio() }
+      })
+    }
+  );
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error?.message || 'Google AI error ' + res.status);
+  }
+  const data = await res.json();
+  const b64 = data?.predictions?.[0]?.bytesBase64Encoded;
+  if (!b64) throw new Error('No image in Google response');
+  return 'data:image/png;base64,' + b64;
+}
+
+// ─── IDEOGRAM ─────────────────────────────────────────────
+async function generateIdeogram(prompt, apiKey) {
+  const res = await fetch('https://api.ideogram.ai/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Api-Key': apiKey },
+    body: JSON.stringify({
+      image_request: {
+        prompt,
+        aspect_ratio: getIdeogramRatio(),
+        model: 'V_2',
+        magic_prompt_option: 'AUTO',
+        style_type: 'REALISTIC',
+      }
+    })
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.message || 'Ideogram error ' + res.status);
+  }
+  const data = await res.json();
+  return data?.data?.[0]?.url || null;
+}
+
+// ─── HELPERS ──────────────────────────────────────────────
+function getAspectRatio() {
+  const [w, h] = state.size.split('x').map(Number);
+  if (w === h) return '1:1';
+  if (w > h) return '16:9';
+  return '9:16';
+}
+
+function getIdeogramRatio() {
+  const [w, h] = state.size.split('x').map(Number);
+  if (w === h) return 'ASPECT_1_1';
+  if (w > h) return 'ASPECT_16_9';
+  return 'ASPECT_9_16';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── UI STATES ────────────────────────────────────────────
+function startUI() {
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Generating…`;
+
+  document.getElementById('statusDot').className = 'status-dot s-gen';
+  document.getElementById('statusText').textContent = 'Generating…';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultView').style.display = 'none';
+  document.getElementById('skeletonView').style.display = 'block';
+  document.getElementById('resultMeta').style.display = 'none';
+  document.getElementById('idleActions').style.display = 'none';
+  document.getElementById('errorBox').style.display = 'none';
+
+  let p = 0;
+  const target = state.quality === 'ultra' ? 22000 : state.quality === 'standard' ? 9000 : 4000;
+  clearInterval(state.progressTimer);
+  state.progressTimer = setInterval(() => {
+    p += 80 / (target / 80);
+    if (p >= 90) clearInterval(state.progressTimer);
+    document.getElementById('progressFill').style.width = Math.min(p, 90) + '%';
+  }, 80);
+}
+
+function showResult(url) {
+  state.generating = false;
+  state.currentImageUrl = url;
+  clearInterval(state.progressTimer);
+  document.getElementById('progressFill').style.width = '100%';
+  setTimeout(() => { document.getElementById('progressFill').style.width = '0'; }, 600);
+
+  document.getElementById('resultImg').src = url;
+  document.getElementById('skeletonView').style.display = 'none';
+  document.getElementById('resultView').style.display = 'block';
+
+  document.getElementById('statusDot').className = 'status-dot s-done';
+  document.getElementById('statusText').textContent = 'Done';
+
+  const chips = document.getElementById('metaChips');
+  chips.innerHTML = '';
+  [state.modelName, state.sizeLabel, state.quality, ...(state.style !== 'None' ? [state.style] : [])].forEach(t => {
+    chips.innerHTML += `<span class="meta-chip">${t}</span>`;
+  });
+
+  document.getElementById('resultMeta').style.display = 'block';
+  document.getElementById('idleActions').style.display = 'none';
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = false;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg> Generate Again`;
+
+  addToHistory(url);
+  toast('✓ Image ready!');
+}
+
+function showError(msg) {
+  state.generating = false;
+  clearInterval(state.progressTimer);
+  document.getElementById('progressFill').style.width = '0';
+  document.getElementById('skeletonView').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('statusDot').className = 'status-dot s-err';
+  document.getElementById('statusText').textContent = 'Error';
+  document.getElementById('resultMeta').style.display = 'none';
+  document.getElementById('idleActions').style.display = 'block';
+
+  const eb = document.getElementById('errorBox');
+  eb.style.display = 'block';
+  eb.textContent = '⚠ ' + msg + '. Make sure your API key is correct and has credits available.';
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = false;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg> Try Again`;
+}
+
+function updateProgressText(t) {
+  const el = document.getElementById('genProgressText');
+  if (el) el.textContent = t;
+}
+
+// ─── ACTIONS ──────────────────────────────────────────────
+function downloadImage() {
+  if (!state.currentImageUrl) return;
+  const a = document.createElement('a');
+  a.href = state.currentImageUrl;
+  a.download = 'pixelmind-' + Date.now() + '.png';
+  a.click();
+}
+
+function copyPromptText() {
+  navigator.clipboard && navigator.clipboard.writeText(state.lastPrompt).then(() => toast('📋 Prompt copied!'));
+}
+
+function regenerate() {
+  handleGenerate();
+}
+
+// ─── HISTORY ──────────────────────────────────────────────
+function addToHistory(url) {
+  state.history.unshift({ url, model: state.modelName, prompt: state.lastPrompt });
+  if (state.history.length > 9) state.history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  if (state.history.length === 0) return;
+  document.getElementById('historyPanel').style.display = 'block';
+  const grid = document.getElementById('historyGrid');
+  grid.innerHTML = '';
+  state.history.forEach((item, i) => {
+    const d = document.createElement('div');
+    d.className = 'history-thumb';
+    d.title = item.prompt;
+    d.onclick = () => { state.currentImageUrl = item.url; document.getElementById('resultImg').src = item.url; document.getElementById('resultView').style.display='block'; document.getElementById('skeletonView').style.display='none'; };
+    if (item.url.startsWith('data:')) {
+      d.innerHTML = `<img src="${item.url}" alt="History ${i}">`;
+    } else {
+      d.innerHTML = `<img src="${item.url}" alt="History ${i}" crossorigin="anonymous">`;
+    }
+    grid.appendChild(d);
+  });
+}
+
+function loadHistory() {}
+
+// ─── MODAL ────────────────────────────────────────────────
+function openKeyModal() {
+  populateKeyModal();
+  document.getElementById('keyModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('keyModal').classList.remove('open');
+}
+
+function populateKeyModal() {
+  ['openai','stability','replicate','google','ideogram'].forEach(k => {
+    const el = document.getElementById('key-'+k);
+    if (el && keys[k]) el.value = keys[k];
+  });
+}
+
+document.getElementById('keyModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('keyModal')) closeModal();
+});
+
+// ─── TOAST ────────────────────────────────────────────────
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ─── START ────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
